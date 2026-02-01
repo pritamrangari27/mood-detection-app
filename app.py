@@ -1,16 +1,15 @@
-"""Mood Detection Flask Application with Spotify Integration."""
+"""Mood Detection Flask Application with Spotify Integration and PostgreSQL."""
 import os
 import time
 import base64
-import json
 import secrets
-import threading
 import random
 import logging
 
 import numpy as np
 import cv2
 from flask import Flask, request, render_template, redirect, url_for, jsonify, make_response
+from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity, 
@@ -32,8 +31,6 @@ logger = logging.getLogger(__name__)
 # Config / App init
 # ---------------------------
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-USERS_FILE = os.path.join(PROJECT_DIR, "users.json")
-MESSAGES_FILE = os.path.join(PROJECT_DIR, "messages.json")
 MODEL_PATH = os.path.join(PROJECT_DIR, "emotion_model.h5")
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
@@ -57,6 +54,66 @@ if IS_PRODUCTION and not os.environ.get("JWT_SECRET_KEY"):
     logger.warning("JWT_SECRET_KEY not set! Using random key (tokens won't persist across restarts)")
 
 jwt = JWTManager(app)
+
+# ---------------------------
+# Database Configuration
+# ---------------------------
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if DATABASE_URL:
+    # Fix for Render PostgreSQL URL (postgres:// -> postgresql://)
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+    logger.info("Using PostgreSQL database")
+else:
+    # Fallback to SQLite for local development
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///mood_app.db"
+    logger.info("Using SQLite database (local development)")
+
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+db = SQLAlchemy(app)
+
+# ---------------------------
+# Database Models
+# ---------------------------
+class User(db.Model):
+    __tablename__ = "users"
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(256), nullable=False)
+    email = db.Column(db.String(120), default="")
+    gender = db.Column(db.String(20), default="")
+    age = db.Column(db.String(10), default="")
+    created_at = db.Column(db.DateTime, default=db.func.now())
+
+    def to_dict(self):
+        return {
+            "username": self.username,
+            "email": self.email or "None",
+            "gender": self.gender or "None",
+            "age": self.age or "None"
+        }
+
+class Message(db.Model):
+    __tablename__ = "messages"
+    id = db.Column(db.Integer, primary_key=True)
+    sender = db.Column(db.String(80), nullable=False)
+    receiver = db.Column(db.String(80), nullable=False)
+    text = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.Integer, nullable=False)
+
+    def to_dict(self):
+        return {
+            "from": self.sender,
+            "to": self.receiver,
+            "text": self.text,
+            "ts": self.timestamp
+        }
+
+# Create tables
+with app.app_context():
+    db.create_all()
+    logger.info("Database tables created")
 
 # ---------------------------
 # Load ML model
@@ -86,63 +143,6 @@ if SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET:
         logger.error(f"Failed to initialize Spotify client: {e}")
 else:
     logger.warning("Spotify credentials not configured. Music features will use fallback tracks.")
-
-# ---------------------------
-# Users storage helpers
-# ---------------------------
-_users_lock = threading.Lock()
-_messages_lock = threading.Lock()
-
-def load_users() -> dict:
-    """Load users from JSON file."""
-    if not os.path.exists(USERS_FILE):
-        return {}
-    try:
-        with open(USERS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError) as e:
-        logger.error(f"Error loading users: {e}")
-        return {}
-
-def save_users(users: dict):
-    with _users_lock:
-        tmp = USERS_FILE + ".tmp"
-        with open(tmp,"w",encoding="utf-8") as f:
-            json.dump(users,f,indent=2)
-        os.replace(tmp, USERS_FILE)
-
-if not os.path.exists(USERS_FILE):
-    default_users = {
-        "pritam":{"password":generate_password_hash("pritam123"),"gender":"","age":""},
-        "testuser":{"password":generate_password_hash("test123"),"gender":"","age":""}
-    }
-    save_users(default_users)
-
-# ---------------------------
-# Messages helpers
-# ---------------------------
-if not os.path.exists(MESSAGES_FILE):
-    with open(MESSAGES_FILE,"w",encoding="utf-8") as f:
-        json.dump([],f)
-
-def load_messages() -> list:
-    """Load messages from JSON file."""
-    if not os.path.exists(MESSAGES_FILE) or os.path.getsize(MESSAGES_FILE) == 0:
-        return []
-    try:
-        with open(MESSAGES_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError) as e:
-        logger.error(f"Error loading messages: {e}")
-        return []
-
-def save_messages(messages: list) -> None:
-    """Save messages to JSON file with thread safety."""
-    with _messages_lock:
-        tmp = MESSAGES_FILE + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(messages, f, indent=2)
-        os.replace(tmp, MESSAGES_FILE)
 
 # ---------------------------
 # Mood → Spotify
@@ -224,22 +224,22 @@ def register():
         gender = request.form.get("gender", "").strip()
         age = request.form.get("age", "").strip()
         
-        users = load_users()
-        
         if not username or not password:
             error = "Username and password are required"
         elif len(password) < 6:
             error = "Password must be at least 6 characters"
-        elif username in users:
+        elif User.query.filter_by(username=username).first():
             error = "Username already exists!"
         else:
-            users[username] = {
-                "password": generate_password_hash(password),
-                "email": email,
-                "gender": gender,
-                "age": age
-            }
-            save_users(users)
+            new_user = User(
+                username=username,
+                password=generate_password_hash(password),
+                email=email,
+                gender=gender,
+                age=age
+            )
+            db.session.add(new_user)
+            db.session.commit()
             success = "Registration successful! Please login."
             logger.info(f"New user registered: {username}")
     
@@ -253,9 +253,10 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        users = load_users()
         
-        if username in users and check_password_hash(users[username]["password"], password):
+        user = User.query.filter_by(username=username).first()
+        
+        if user and check_password_hash(user.password, password):
             access_token = create_access_token(identity=username)
             resp = make_response(redirect(url_for("dashboard")))
             set_access_cookies(resp, access_token)
@@ -276,23 +277,25 @@ def logout():
 @jwt_required()
 def dashboard():
     username = get_jwt_identity()
-    users = load_users()
-    user_info = users.get(username,{})
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return redirect(url_for("logout"))
     return render_template("dashboard.html", 
                            username=username, 
-                           email=user_info.get("email","None"),
-                           gender=user_info.get("gender","None"), 
-                           age=user_info.get("age","None"))
+                           email=user.email or "None",
+                           gender=user.gender or "None", 
+                           age=user.age or "None")
 
-@app.route("/update_profile",methods=["POST"])
+@app.route("/update_profile", methods=["POST"])
 @jwt_required()
 def update_profile():
-    username=get_jwt_identity()
-    users=load_users()
-    users[username]["gender"]=request.form.get("gender","").strip()
-    users[username]["age"]=request.form.get("age","").strip()
-    users[username]["email"]=request.form.get("email","").strip()
-    save_users(users)
+    username = get_jwt_identity()
+    user = User.query.filter_by(username=username).first()
+    if user:
+        user.gender = request.form.get("gender", "").strip()
+        user.age = request.form.get("age", "").strip()
+        user.email = request.form.get("email", "").strip()
+        db.session.commit()
     return redirect(url_for("dashboard"))
 
 # Load face cascade once at startup
@@ -355,47 +358,48 @@ def songs():
 # Chat routes
 # ---------------------------
 @app.route("/chat/send", methods=["POST"])
-@jwt_required()  # require login
+@jwt_required()
 def chat_send():
     body = request.get_json()
     if not body or "to" not in body or "text" not in body:
         return jsonify({"error": "Missing fields"}), 400
     
-    username = get_jwt_identity()  # guaranteed to be logged in
-    msg = {
-        "from": username,
-        "to": body["to"],
-        "text": body["text"],
-        "ts": int(time.time())
-    }
-    msgs = load_messages()
-    msgs.append(msg)
-    save_messages(msgs)
+    username = get_jwt_identity()
+    new_msg = Message(
+        sender=username,
+        receiver=body["to"],
+        text=body["text"],
+        timestamp=int(time.time())
+    )
+    db.session.add(new_msg)
+    db.session.commit()
     return jsonify({"status": "ok"})
 
 
 @app.route("/chat/fetch", methods=["GET"])
-@jwt_required()  # require login
+@jwt_required()
 def chat_fetch():
     chat_with = request.args.get("user")
     if not chat_with:
         return jsonify({"error": "Missing user"}), 400
     
-    username = get_jwt_identity()  # guaranteed to be logged in
-
-    msgs = load_messages()
-    convo = [m for m in msgs if (m["from"] == username and m["to"] == chat_with) or
-                             (m["from"] == chat_with and m["to"] == username)]
-    convo.sort(key=lambda x: x["ts"])
-    return jsonify(convo)
+    username = get_jwt_identity()
+    
+    messages = Message.query.filter(
+        db.or_(
+            db.and_(Message.sender == username, Message.receiver == chat_with),
+            db.and_(Message.sender == chat_with, Message.receiver == username)
+        )
+    ).order_by(Message.timestamp).all()
+    
+    return jsonify([m.to_dict() for m in messages])
 
 @app.route("/users/list", methods=["GET"])
-@jwt_required()  # require login
+@jwt_required()
 def users_list():
-    users = load_users()
     username = get_jwt_identity()
-    others = [u for u in users if u != username]
-    return jsonify(others)
+    users = User.query.filter(User.username != username).all()
+    return jsonify([u.username for u in users])
 
 
 

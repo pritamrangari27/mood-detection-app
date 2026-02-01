@@ -1,5 +1,6 @@
 flask
 flask-jwt-extended
+flask-sqlalchemy
 werkzeug
 tensorflow
 numpy
@@ -8,3 +9,4 @@ pillow
 python-dotenv
 gunicorn
 spotipy
+psycopg2-binary
