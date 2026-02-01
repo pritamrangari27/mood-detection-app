@@ -116,12 +116,26 @@ with app.app_context():
     logger.info("Database tables created")
 
 # ---------------------------
-# Load ML model
+# Load ML model (lazy loading to save memory)
 # ---------------------------
-if not os.path.exists(MODEL_PATH):
-    raise FileNotFoundError(f"Model file not found at {MODEL_PATH}.")
-model = load_model(MODEL_PATH)
+model = None
 emotion_labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
+
+def get_model():
+    """Lazy load the TensorFlow model to reduce startup memory."""
+    global model
+    if model is None:
+        if not os.path.exists(MODEL_PATH):
+            raise FileNotFoundError(f"Model file not found at {MODEL_PATH}.")
+        # Limit TensorFlow memory growth
+        import tensorflow as tf
+        tf.config.set_soft_device_placement(True)
+        gpus = tf.config.experimental.list_physical_devices('GPU')
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+        model = load_model(MODEL_PATH)
+        logger.info("ML model loaded successfully")
+    return model
 
 # ---------------------------
 # Spotify Setup
@@ -331,7 +345,9 @@ def predict():
         face_resized = cv2.resize(face, (48, 48)).astype("float32") / 255.0
         face_resized = np.expand_dims(face_resized, axis=(0, -1))
         
-        prediction = model.predict(face_resized, verbose=0)
+        # Use lazy-loaded model
+        ml_model = get_model()
+        prediction = ml_model.predict(face_resized, verbose=0)
         emotion = emotion_labels[int(np.argmax(prediction))]
         
         return jsonify({"emotion": emotion})

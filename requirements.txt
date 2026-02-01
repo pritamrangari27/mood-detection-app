@@ -2,7 +2,7 @@ flask
 flask-jwt-extended
 flask-sqlalchemy
 werkzeug
-tensorflow
+tensorflow-cpu
 numpy
 opencv-python-headless
 pillow
