@@ -17,7 +17,6 @@ from flask_jwt_extended import (
 )
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
-from tensorflow.keras.models import load_model
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -31,7 +30,7 @@ logger = logging.getLogger(__name__)
 # Config / App init
 # ---------------------------
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(PROJECT_DIR, "emotion_model.h5")
+MODEL_PATH = os.path.join(PROJECT_DIR, "emotion_model.tflite")
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
@@ -116,26 +115,31 @@ with app.app_context():
     logger.info("Database tables created")
 
 # ---------------------------
-# Load ML model (lazy loading to save memory)
+# Load ML model (lazy loading with TFLite for low memory)
 # ---------------------------
-model = None
+interpreter = None
+input_details = None
+output_details = None
 emotion_labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
 
 def get_model():
-    """Lazy load the TensorFlow model to reduce startup memory."""
-    global model
-    if model is None:
+    """Lazy load the TFLite interpreter to reduce startup memory."""
+    global interpreter, input_details, output_details
+    if interpreter is None:
         if not os.path.exists(MODEL_PATH):
             raise FileNotFoundError(f"Model file not found at {MODEL_PATH}.")
-        # Limit TensorFlow memory growth
-        import tensorflow as tf
-        tf.config.set_soft_device_placement(True)
-        gpus = tf.config.experimental.list_physical_devices('GPU')
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-        model = load_model(MODEL_PATH)
-        logger.info("ML model loaded successfully")
-    return model
+        try:
+            import tflite_runtime.interpreter as tflite
+            interpreter = tflite.Interpreter(model_path=MODEL_PATH)
+        except ImportError:
+            # Fallback for local development with full TensorFlow
+            import tensorflow as tf
+            interpreter = tf.lite.Interpreter(model_path=MODEL_PATH)
+        interpreter.allocate_tensors()
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+        logger.info("TFLite model loaded successfully")
+    return interpreter, input_details, output_details
 
 # ---------------------------
 # Spotify Setup
@@ -345,9 +349,11 @@ def predict():
         face_resized = cv2.resize(face, (48, 48)).astype("float32") / 255.0
         face_resized = np.expand_dims(face_resized, axis=(0, -1))
         
-        # Use lazy-loaded model
-        ml_model = get_model()
-        prediction = ml_model.predict(face_resized, verbose=0)
+        # Use lazy-loaded TFLite model
+        interp, in_details, out_details = get_model()
+        interp.set_tensor(in_details[0]['index'], face_resized)
+        interp.invoke()
+        prediction = interp.get_tensor(out_details[0]['index'])
         emotion = emotion_labels[int(np.argmax(prediction))]
         
         return jsonify({"emotion": emotion})

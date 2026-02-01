@@ -2,7 +2,6 @@ flask
 flask-jwt-extended
 flask-sqlalchemy
 werkzeug
-tensorflow-cpu
 numpy
 opencv-python-headless
 pillow
@@ -10,3 +9,4 @@ python-dotenv
 gunicorn
 spotipy
 psycopg2-binary
+tflite-runtime
