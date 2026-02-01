@@ -1,4 +1,4 @@
-# Mood Detection App — Deployment Guide
+# Mood Detection App
 
 Short guide to run and deploy this Flask app locally, with Docker, or to a PaaS.
 
