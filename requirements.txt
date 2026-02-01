@@ -1,0 +1,10 @@
+flask
+flask-jwt-extended
+werkzeug
+tensorflow
+numpy
+opencv-python-headless
+pillow
+python-dotenv
+gunicorn
+spotipy

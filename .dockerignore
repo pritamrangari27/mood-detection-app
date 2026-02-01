@@ -1,0 +1,64 @@
+# ===========================================
+# Docker Build Ignore - Mood Detection App
+# ===========================================
+
+# Training data - NOT NEEDED in production (saves ~300MB+)
+fer2013/
+
+# Training scripts - not needed at runtime
+train_model.py
+
+# Duplicate/backup models - keep only emotion_model.h5
+best_emotion_model.h5
+
+# Standalone test scripts
+detect_mood.py
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Environment files (NEVER include secrets in image)
+.env
+.env.*
+
+# Git
+.git/
+.gitignore
+
+# IDE/Editor artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Test files
+tests/
+test_*.py
+*_test.py
+
+# Node (if any)
+node_modules/
+
+# Documentation (optional - can include if needed)
+# README.md

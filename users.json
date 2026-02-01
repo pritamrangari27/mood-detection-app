@@ -1,0 +1,19 @@
+{
+  "Pritam": {
+    "password": "scrypt:32768:8:1$OuR3RbsaxE2lb9Tn$a5ede5ee831457290078a41531be5f9358c97bb496af0ab8ce6745cceb9d3a2a32d1441c2e03cad99d6aa08e5821bc032b1c1c4b64f826394654d411fb0f9ce1",
+    "gender": "Male",
+    "age": "20",
+    "email": "pritamrangari125@gmail.com"
+  },
+  "Sharvari": {
+    "password": "scrypt:32768:8:1$rWoL0H6lGWFOuHSt$ab3ddf7e669cad75975ba7324fcc34217b5bffc0bff4032bc7deb0c6a24d71593283933d562494b11aae8b16f8672cb6a16a8f9cc2fe68080858c97a3759ec2b",
+    "gender": "Female",
+    "age": "21",
+    "email": "Shalgarsharvari@gmail.com"
+  },
+  "Nirja": {
+    "password": "scrypt:32768:8:1$IX6aywFupjvY80eI$65f43c0236d4d33429759fa5924146e0596bb0fb83f9b184c520448b73539fe5325017e77f22dfee2d7d1172e710539fce72714db6c97c092e9128a3a97b7926",
+    "gender": "",
+    "age": ""
+  }
+}

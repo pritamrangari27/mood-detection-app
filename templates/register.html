@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Register - Mood Detection App</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+<style>
+    body {
+        font-family: 'Montserrat', sans-serif;
+        background-color: #121212;
+        color: #B3B3B3;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        overflow: hidden;
+        cursor: default; /* normal cursor */
+        padding: 20px;
+    }
+
+    .register-container {
+        background-color: #191414;
+        padding: 30px 25px;
+        border-radius: 16px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        width: 100%;
+        max-width: 400px;
+        text-align: center;
+    }
+
+    h2 {
+        color: #1DB954;
+        margin-bottom: 20px;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+        text-align: left;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 0.9rem;
+        color: #B3B3B3;
+    }
+
+    input, select {
+        width: 100%;
+        padding: 12px 15px;
+        border-radius: 8px;
+        border: none;
+        background-color: #282828;
+        color: #fff;
+        font-size: 1rem;
+        box-sizing: border-box;
+    }
+
+    input::placeholder {
+        color: #B3B3B3;
+    }
+
+    /* Flex row for gender & age */
+    .row {
+        display: flex;
+        gap: 10px;
+    }
+
+    .row .form-group {
+        flex: 1;
+        margin-bottom: 0;
+    }
+
+    button {
+        width: 100%;
+        padding: 12px 0;
+        margin-top: 20px;
+        border: none;
+        border-radius: 8px;
+        background-color: #1DB954;
+        color: #fff;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: transform 0.2s, background 0.2s;
+    }
+
+    button:hover {
+        background-color: #1ed760;
+        transform: scale(1.05);
+    }
+
+    .login-link {
+        margin-top: 15px;
+        display: block;
+        color: #1DB954;
+        text-decoration: none;
+        font-size: 0.9rem;
+    }
+
+    .login-link:hover {
+        text-decoration: underline;
+    }
+
+    .error { color: #FF4B4B; margin-top: 10px; font-size: 0.9rem; }
+    .success { color: #1ED760; margin-top: 10px; font-size: 0.9rem; }
+
+    /* Responsive */
+    @media (max-width: 480px) {
+        .register-container {
+            padding: 20px 15px;
+        }
+        h2 {
+            font-size: 1.4rem;
+        }
+        input, select, button {
+            font-size: 0.95rem;
+            padding: 10px 12px;
+        }
+        .row {
+            flex-direction: column;
+        }
+    }
+</style>
+</head>
+<body>
+
+<div class="register-container">
+    <h2>Register</h2>
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+        <div class="success">{{ success }}</div>
+    {% endif %}
+    <form method="POST" action="{{ url_for('register') }}">
+        <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" name="username" placeholder="Enter username" required>
+        </div>
+
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" name="password" placeholder="Enter password" required>
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" name="email" placeholder="Enter email" required>
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label for="gender">Gender</label>
+                <select name="gender" required>
+                    <option value="" disabled selected>Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="age">Age</label>
+                <input type="number" name="age" placeholder="Age" min="1" max="120" required>
+            </div>
+        </div>
+
+        <button type="submit">Register</button>
+    </form>
+    <a class="login-link" href="{{ url_for('login') }}">Already have an account? Login</a>
+</div>
+
+</body>
+</html>
